@@ -29,3 +29,20 @@ game28.dta
 
 # Log files
 warnings.log
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.pyre/
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+.venv/
+venv/
+env/
+
+# IDE/editor settings
+.vscode/

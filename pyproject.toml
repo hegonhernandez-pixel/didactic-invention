@@ -1,0 +1,17 @@
+[project]
+name = "didactic-invention"
+version = "0.1.0"
+description = "A Python package scaffold for the didactic invention project."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.urls]
+"Source" = "https://github.com/hegonhernandez-pixel/didactic-invention"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
