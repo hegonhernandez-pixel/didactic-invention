@@ -1,0 +1,138 @@
+name: Build Tattoo Pack
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl zip jq librsvg2-bin inkscape
+
+      - name: Prepare folders
+        run: |
+          mkdir -p packs/tattoos/svgs packs/tattoos/pngs
+
+      - name: Download and extract files
+        run: |
+          set -euo pipefail
+          urls_file="packs/tattoos/urls.txt"
+          out_svg_dir="packs/tattoos/svgs"
+          out_png_dir="packs/tattoos/pngs"
+          notes_file="packs/tattoos/LICENSE_NOTES.txt"
+          > "$notes_file"
+          idx=1
+          while IFS= read -r url || [ -n "$url" ]; do
+            if [[ -z "$url" ]]; then continue; fi
+            echo "Processing [$idx]: $url" | tee -a "$notes_file"
+            filename=""
+            if [[ "$url" =~ \.(svg|png)$ ]]; then
+              filename=$(basename "$url")
+              out_path="$out_svg_dir/$filename"
+              curl -L -s -o "$out_path" "$url" && echo "Downloaded directly: $filename" | tee -a "$notes_file"
+            else
+              page=$(mktemp)
+              curl -L -s "$url" -o "$page"
+              match=$(grep -oiE "https?:[^\"]+\.(svg|png)" "$page" | head -n1 || true)
+              if [[ -z "$match" ]]; then
+                match=$(grep -oiE "(href|src)=\"[^\"]+\.(svg|png)\"" "$page" | sed -E 's/.*=\"([^\"]+)\"/\1/' | head -n1 || true)
+                if [[ -n "$match" && "$match" != http* ]]; then
+                  base=$(echo "$url" | sed -E 's|(https?://[^/]+).*|\1|')
+                  match="$base$match"
+                fi
+              fi
+              if [[ -n "$match" ]]; then
+                filename=$(basename "$match")
+                out_path="$out_svg_dir/$filename"
+                curl -L -s -o "$out_path" "$match" && echo "Found and downloaded: $match" | tee -a "$notes_file"
+              else
+                echo "No direct svg/png found for $url; saving page for review" | tee -a "$notes_file"
+                cp "$page" "$out_svg_dir/page_${idx}.html"
+              fi
+              rm -f "$page"
+            fi
+
+            if [[ -n "$filename" ]]; then
+              if [[ "$filename" == *.svg ]]; then
+                out_png="$out_png_dir/${filename%.svg}.png"
+                if command -v rsvg-convert >/dev/null 2>&1; then
+                  rsvg-convert -d 300 -p 300 -o "$out_png" "$out_path" && echo "Converted $filename -> $(basename "$out_png")" | tee -a "$notes_file"
+                elif command -v inkscape >/dev/null 2>&1; then
+                  inkscape "$out_path" --export-dpi=300 --export-type=png --export-filename="$out_png" && echo "Converted (inkscape) $filename -> $(basename "$out_png")" | tee -a "$notes_file"
+                else
+                  echo "No converter available for $filename; SVG kept only." | tee -a "$notes_file"
+                fi
+              elif [[ "$filename" == *.png ]]; then
+                cp "$out_svg_dir/$filename" "$out_png_dir/$filename" || true
+              fi
+            fi
+
+            page_tmp=$(mktemp)
+            curl -L -s "$url" -o "$page_tmp" || true
+            license_hint="unknown"
+            if grep -qi "CC0\|Creative Commons Zero\|public domain\|Public Domain" "$page_tmp"; then
+              license_hint="CC0 / Public Domain"
+            elif grep -qi "Pixabay" "$page_tmp"; then
+              license_hint="Pixabay (free for use - check page)"
+            elif grep -qi "Openclipart" "$page_tmp"; then
+              license_hint="OpenClipart (public domain)"
+            elif grep -qi "vecteezy\|freepik\|pngtree\|svgrepo" "$page_tmp"; then
+              license_hint="Platform resource - check item page for license"
+            fi
+            rm -f "$page_tmp"
+
+            echo "Source: $url" >> "$notes_file"
+            echo "License hint: $license_hint" >> "$notes_file"
+            echo "" >> "$notes_file"
+
+            idx=$((idx+1))
+          done < "$urls_file"
+
+      - name: Create ZIP and commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          zipfile="packs/tattoos/tattoo_designs_20_300dpi.zip"
+          cd packs/tattoos
+          zip -r "$zipfile" svgs pngs LICENSE_NOTES.txt || true
+          git add tattoo_designs_20_300dpi.zip LICENSE_NOTES.txt || true
+          if ! git diff --staged --quiet; then
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Add tattoo_designs_20_300dpi.zip and LICENSE_NOTES"
+            git push origin HEAD
+          else
+            echo "No changes to commit"
+          fi
+
+Opción 2 — Ejecutar localmente (no requiere cambiar permisos)
+
+    Paso corto: clona tu repo, cambiate a la rama tattoos-pack (ya creada) y ejecuta el script local que pongo abajo; el script lee packs/tattoos/urls.txt, intenta extraer links directos, descarga, convierte a PNG 300 dpi y crea el ZIP.
+    Ventaja: control total y no tienes que cambiar nada en la configuración del repo ni dar más permisos.
+
+Script local (guárdalo como make_zip_from_repo.sh, hazlo ejecutable y ejecútalo desde la raíz del repo clonada; requiere curl, zip y librsvg o inkscape):
+
+#!/usr/bin/env bash set -euo pipefail urls_file="packs/tattoos/urls.txt" out_svg_dir="packs/tattoos/svgs" out_png_dir="packs/tattoos/pngs" notes_file="packs/tattoos/LICENSE_NOTES.txt" mkdir -p "$out_svg_dir" "$out_png_dir"
+
+    "$notes_file" idx=1 while IFS= read -r url || [ -n "$url" ]; do if [[ -z "$url" ]]; then continue; fi echo "Processing [$idx]: $url" | tee -a "$notes_file" filename="" if [[ " u r l " =   . ( s v g | p n g ) ]]; then filename=$(basename "$url") out_path="$out_svg_dir/$filename" curl -L -s -o "$out_path" "$url" && echo "Downloaded directly: $filename" | tee -a "$notes_file" else page=$(mktemp) curl -L -s "$url" -o "$page" match=$(grep -oiE "https?:[^"]+.(svg|png)" "$page" | head -n1 || true) if [[ -z "$match" ]]; then match=$(grep -oiE "(href|src)="[^"]+.(svg|png)"" "$page" | sed -E 's/.="([^"]+)"/\1/' | head -n1 || true) if [[ -n "$match" && "$match" != http ]]; then base=$(echo "$url" | sed -E 's|(https?://[^/]+).*|\1|') match="$base$match" fi fi if [[ -n "$match" ]]; then filename=$(basename "$match") out_path="$out_svg_dir/$filename" curl -L -s -o "$out_path" "$match" && echo "Found and downloaded: $match" | tee -a "$notes_file" else echo "No direct svg/png found for $url; saved page for review" | tee -a "$notes_file" cp "
+    Missing superscript or subscript argument
+
+    page" "$out_svg_dir/page_
+
+    {idx}.html" fi rm -f "$page" fi
+
+if [[ -n "$filename" ]]; then if [[ "$filename" == *.svg ]]; then out_png=" o u t p n g d i r / {filename%.svg}.png" if command -v rsvg-convert >/dev/null 2>&1; then rsvg-convert -d 300 -p 300 -o "$out_png" "$out_path" && echo "Converted $filename -> $(basename "$out_png")" | tee -a "$notes_file" elif command -v inkscape >/dev/null 2>&1; then inkscape "$out_path" --export-dpi=300 --export-type=png --export-filename="$out_png" && echo "Converted (inkscape) $filename -> $(basename "$out_png")" | tee -a "$notes_file" else echo "No converter available for $filename; SVG kept only." | tee -a "$notes_file" fi elif [[ "$filename" == *.png ]]; then cp "$out_svg_dir/$filename" "$out_png_dir/$filename" || true fi fi
+
+page_tmp=$(mktemp) curl -L -s "$url" -o "$page_tmp" || true license_hint="unknown" if grep -qi "CC0|Creative Commons Zero|public domain|Public Domain" "$page_tmp"; then license_hint="CC0 / Public Domain" elif grep -qi "Pixabay" "$page_tmp"; then license_hint="Pixabay (free for use - check page)" elif grep -qi "Openclipart" "$page_tmp"; then license_hint="OpenClipart (public domain)" elif grep -qi "vecteezy|freepik|pngtree|svgrepo" "$page_tmp"; then license_hint="Platform resource - check item page for license" fi rm -f "$page_tmp"
+
+echo "Source: $url" >> "$notes_file" echo "License hint: $license_hint" >> "$notes_file" echo "" >> "$notes_file"
+
+idx=$((idx+1)) done < "$urls_file"
+
+zipfile="packs/tattoos/tattoo_designs_20_300dpi.zip" cd packs/tattoos zip -r "$zipfile" svgs pngs LICENSE_NOTES.txt || true echo "ZIP creado: packs/tattoos/tattoo_designs_20_300dpi.zip"
