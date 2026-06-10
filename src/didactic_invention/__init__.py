@@ -1,7 +1,7 @@
 """Didactic Invention package."""
 
-__version__ = "0.1.0"
+**version** = "0.1.0"
 
 from .main import generate_message
 
-__all__ = ["generate_message", "__version__"]
+**all** = ["generate_message", "**version**"]
