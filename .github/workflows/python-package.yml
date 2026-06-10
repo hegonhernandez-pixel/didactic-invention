@@ -32,3 +32,10 @@ jobs:
 
       - name: Run tests
         run: python -m pytest
+"""Didactic Invention package."""
+
+**version** = "0.1.0"
+
+from .main import generate_message
+
+**all** = ["generate_message", "**version**"]
