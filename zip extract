@@ -1,0 +1,59 @@
+import os
+import shutil
+
+# --- CONFIGURACIÓN ---
+# Cambia esta letra si tu memoria tiene otra asignada en tu PC
+RUTA_DOWNLOAD = "D:/games/download"
+# ---------------------
+
+if not os.path.exists(RUTA_DOWNLOAD):
+    print(f"Error: La ruta '{RUTA_DOWNLOAD}' no existe.")
+    print("Por favor, edita la letra de la unidad en el script.")
+    input("\nPresiona Enter para salir...")
+    exit()
+
+print("==================================================")
+print("  SCRIPT SEGURO: RESCATAR ZIP Y LIMPIAR CARPETAS  ")
+print("==================================================")
+print(f"Procesando: {RUTA_DOWNLOAD}\n")
+
+carpetas_procesadas = 0
+
+# Escaneamos todo el directorio download
+for elemento in os.listdir(RUTA_DOWNLOAD):
+    ruta_carpeta_interna = os.path.join(RUTA_DOWNLOAD, elemento)
+    
+    # Solo procesamos si es una subcarpeta (ej: hookj)
+    if os.path.isdir(ruta_carpeta_interna):
+        if elemento.startswith('.') or elemento.startswith('_'):
+            continue
+            
+        print(f"📁 Revisando carpeta: {elemento}")
+        zip_encontrado = False
+        
+        # Paso 1: Buscar archivos .zip dentro de la subcarpeta
+        for archivo_interno in os.listdir(ruta_carpeta_interna):
+            if archivo_interno.lower().endswith('.zip'):
+                ruta_zip_origen = os.path.join(ruta_carpeta_interna, archivo_interno)
+                ruta_zip_destino = os.path.join(RUTA_DOWNLOAD, archivo_interno)
+                
+                # Movemos el archivo .zip hacia la raíz de download
+                print(f"   ↳ [RESCATANDO JUEGO] Moviendo {archivo_interno} hacia afuera...")
+                shutil.move(ruta_zip_origen, ruta_zip_destino)
+                zip_encontrado = True
+        
+        # Paso 2: Eliminar la carpeta sobrante una vez rescatado el juego
+        try:
+            print(f"   ↳ [LIMPIEZA] Eliminando carpeta vacía/sobrante '{elemento}'...")
+            shutil.rmtree(ruta_carpeta_interna)
+            carpetas_procesadas += 1
+        except Exception as e:
+            print(f"   ↳ [ERROR] No se pudo eliminar la carpeta: {e}")
+        print("-" * 40)
+
+print("\n==================================================")
+print(f"¡Proceso terminado con éxito!")
+print(f"Se limpiaron {carpetas_procesadas} carpetas y todos tus juegos .zip quedaron a salvo afuera.")
+print("==================================================")
+
+input("\nPresiona Enter para cerrar...")
